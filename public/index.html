@@ -163,6 +163,31 @@
   .links-badge:hover { transform: translateY(-2px); background: rgba(34,211,238,.2); }
   .links-badge.visible { display: block; }
 
+  /* ── TEXT INPUT BAR (text mode) ── */
+  .text-bar {
+    position: absolute; left: 50%; bottom: 1.1rem; transform: translateX(-50%);
+    width: min(680px, 92vw); z-index: 13;
+    display: none; gap: .5rem; align-items: center;
+    background: rgba(13,11,30,.92); backdrop-filter: blur(14px);
+    border: 1px solid var(--border); border-radius: 16px; padding: .55rem .6rem;
+    box-shadow: 0 8px 28px rgba(0,0,0,.45);
+  }
+  .text-bar.show { display: flex; }
+  .text-bar input {
+    flex: 1; background: rgba(255,255,255,.05); border: 1px solid var(--border);
+    border-radius: 11px; color: var(--white); font-family: 'Nunito', sans-serif;
+    font-size: .92rem; padding: .7rem .9rem; outline: none; transition: border-color .2s;
+  }
+  .text-bar input:focus { border-color: var(--purple-light); }
+  .text-bar button {
+    flex-shrink: 0; padding: .7rem 1.2rem; border: none; border-radius: 11px;
+    background: linear-gradient(135deg, var(--purple), #4f46e5); color: #fff;
+    font-family: 'Nunito', sans-serif; font-size: .9rem; font-weight: 800; cursor: pointer;
+    transition: opacity .2s, transform .15s;
+  }
+  .text-bar button:hover { opacity: .92; transform: translateY(-1px); }
+  .text-bar button:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
   /* ── SUMMARY SCREEN ── */
   #summaryScreen { display: flex; align-items: center; justify-content: center; flex-direction: column; overflow-y: auto; padding: 2rem 1rem; background: var(--bg); }
   .summary-box { background: var(--card); border: 1px solid var(--border); border-radius: 20px; width: 100%; max-width: 720px; padding: 2.5rem; }
@@ -232,6 +257,7 @@
     <div class="spacer"></div>
     <span class="timer" id="timerDisplay">00:00</span>
     <span class="status-pill idle" id="statusPill">Ready</span>
+    <button class="btn-bar btn-ghost" id="modeToggle" title="Switch voice / text input">🎤 Voice</button>
     <button class="btn-bar btn-ghost" id="transcriptToggle" title="Show transcript">📝 Transcript</button>
     <button class="btn-bar btn-end" id="endBtn">End</button>
   </div>
@@ -267,6 +293,12 @@
 
     <!-- Badge to reopen last links -->
     <button class="links-badge" id="linksBadge">🔗 Links</button>
+
+    <!-- Text input bar (shown in text mode) -->
+    <form class="text-bar" id="textBar">
+      <input id="textInput" type="text" autocomplete="off" placeholder="Type your message to Lumi…">
+      <button type="submit" id="textSend">Send</button>
+    </form>
   </div>
 
 </div>
@@ -320,6 +352,7 @@ const STATE = {
   sessionStart: null,
   timerInterval: null,
   starting: false,
+  inputMode: 'voice',        // 'voice' | 'text'
 };
 
 // Evidence trigger config
@@ -349,6 +382,10 @@ const els = {
   linksBody:         $('linksBody'),
   linksClose:        $('linksCloseBtn'),
   linksBadge:        $('linksBadge'),
+  modeToggle:        $('modeToggle'),
+  textBar:           $('textBar'),
+  textInput:         $('textInput'),
+  textSend:          $('textSend'),
   exportTranscript:  $('exportTranscript'),
   exportLinksWrap:   $('exportLinksWrap'),
   exportLinks:       $('exportLinks'),
@@ -418,6 +455,10 @@ function appendToHost(role, text) {
 function onTranscript(role, text) {
   const clean = (text || '').trim();
   if (!clean) return;
+  // dedupe: ignore an identical line from the same speaker within 4s
+  // (guards against SDK echoes and typed-text appearing twice)
+  const last = STATE.transcript[STATE.transcript.length - 1];
+  if (last && last.role === role && last.text === clean && Date.now() - last.ts < 4000) return;
   STATE.transcript.push({ role, text: clean, ts: Date.now() });
   if (role === 'you' && !STATE.topic) STATE.topic = clean;
   appendToHost(role, clean);
@@ -564,6 +605,12 @@ async function startSession() {
   els.transcriptEmpty = $('transcriptEmpty');
   els.linksBadge.classList.remove('visible');
   hideLinksToast();
+  // each session starts in voice mode (mic live)
+  STATE.inputMode = 'voice';
+  els.textBar.classList.remove('show');
+  els.textInput.value = '';
+  els.modeToggle.classList.remove('active');
+  els.modeToggle.textContent = '🎤 Voice';
   els.laLoading.style.display = 'flex';
 
   try {
@@ -673,6 +720,38 @@ async function getFeedback() {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  INPUT MODE  (voice ⇄ text)
+// ═══════════════════════════════════════════════════════════
+async function setInputMode(mode) {
+  STATE.inputMode = mode;
+  const isText = mode === 'text';
+  els.textBar.classList.toggle('show', isText);
+  els.modeToggle.classList.toggle('active', isText);
+  els.modeToggle.textContent = isText ? '⌨️ Text' : '🎤 Voice';
+  // In text mode, mute the mic so Lumi doesn't react to voice; unmute for voice mode.
+  try {
+    const vc = STATE.session?.voiceChat;
+    if (vc) { if (isText) await vc.mute(); else await vc.unmute(); }
+  } catch (e) { console.warn('[voiceChat toggle]', e?.message); }
+  if (isText) setTimeout(() => els.textInput.focus(), 60);
+}
+
+function sendText() {
+  const text = (els.textInput.value || '').trim();
+  if (!text) return;
+  if (!STATE.session) { showToast('Start a session with Lumi first.', true); return; }
+  try {
+    STATE.session.message(text);   // send the typed turn to the avatar's AI (FULL mode)
+  } catch (e) {
+    showToast('Could not send: ' + e.message, true);
+    return;
+  }
+  onTranscript('you', text);       // show it in the transcript + run the link/evidence trigger
+  els.textInput.value = '';
+  els.textInput.focus();
+}
+
+// ═══════════════════════════════════════════════════════════
 //  EVENT LISTENERS
 // ═══════════════════════════════════════════════════════════
 els.startBtn.addEventListener('click', startSession);
@@ -685,6 +764,9 @@ els.transcriptToggle.addEventListener('click', () => {
   const open = els.transcriptDrawer.classList.toggle('open');
   els.transcriptToggle.classList.toggle('active', open);
 });
+
+els.modeToggle.addEventListener('click', () => setInputMode(STATE.inputMode === 'text' ? 'voice' : 'text'));
+els.textBar.addEventListener('submit', (e) => { e.preventDefault(); sendText(); });
 els.transcriptClose.addEventListener('click', () => {
   els.transcriptDrawer.classList.remove('open');
   els.transcriptToggle.classList.remove('active');
