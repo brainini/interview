@@ -1,0 +1,10 @@
+# secrets — never commit
+.env
+.env.*
+!.env.example
+api_keys.txt
+
+# deps / build / local
+node_modules
+.vercel
+.DS_Store

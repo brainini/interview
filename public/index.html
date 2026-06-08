@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lumi AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0b1e;
+    --card: #161230;
+    --surface: #1e1840;
+    --purple: #7c3aed;
+    --purple-light: #a78bfa;
+    --purple-dim: rgba(124,58,237,0.15);
+    --cyan: #22d3ee;
+    --cyan-dim: rgba(34,211,238,0.12);
+    --amber: #fbbf24;
+    --amber-dim: rgba(251,191,36,0.15);
+    --green: #34d399;
+    --red: #f87171;
+    --white: #f0f4ff;
+    --muted: #94a3b8;
+    --border: rgba(124,58,237,0.25);
+    --border-cyan: rgba(34,211,238,0.25);
+  }
+
+  html { margin: 0; padding: 0; overflow: hidden; height: 100%; }
+  body { margin: 0; padding: 0; overflow: hidden; height: 100%; background: #070512; color: var(--white); font-family: 'Nunito', sans-serif; }
+
+  /* ── SCREENS ── */
+  .screen { position: fixed; inset: 0; transition: opacity .4s, transform .4s; }
+  .screen.hidden { opacity: 0; pointer-events: none; transform: scale(.97); }
+
+  /* ── TOPIC MODAL ── */
+  .topic-overlay {
+    position: fixed; inset: 0;
+    background: linear-gradient(135deg, #EEF4FF 0%, #EDE9FE 50%, #E0F2FE 100%);
+    z-index: 300; display: flex; align-items: center; justify-content: center; padding: 1rem;
+    opacity: 0; pointer-events: none; transition: opacity .35s;
+  }
+  .topic-overlay.open { opacity: 1; pointer-events: all; }
+  .topic-modal {
+    background: #FFFFFF; border: none; border-radius: 28px;
+    padding: 3rem 2.5rem; width: 100%; max-width: 480px; text-align: center;
+    box-shadow: 0 8px 40px rgba(37,99,235,.12), 0 2px 8px rgba(0,0,0,.06);
+    transform: translateY(16px); transition: transform .35s;
+  }
+  .topic-overlay.open .topic-modal { transform: translateY(0); }
+  .topic-modal-icon { font-size: 3.2rem; margin-bottom: .75rem; }
+  .topic-modal-title { font-size: 1.65rem; font-weight: 900; color: #2563EB; margin-bottom: .6rem; }
+  .topic-modal-sub { font-size: .92rem; color: #64748b; font-weight: 600; margin-bottom: 2rem; line-height: 1.5; }
+
+  .btn-start-nova {
+    width: 100%; padding: 1.1rem; background: linear-gradient(135deg, #2563EB, #7C3AED);
+    border: none; border-radius: 16px; color: white; font-family: 'Nunito', sans-serif;
+    font-size: 1.08rem; font-weight: 900; cursor: pointer; transition: opacity .2s, transform .15s, box-shadow .2s;
+    box-shadow: 0 4px 20px rgba(37,99,235,.4); letter-spacing: .01em;
+  }
+  .btn-start-nova:hover { opacity: .93; transform: translateY(-2px); box-shadow: 0 8px 28px rgba(37,99,235,.45); }
+  .btn-start-nova:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
+  /* ── TOP BAR ── */
+  .top-bar {
+    position: fixed; top: 0; left: 0; width: 100%; height: 56px;
+    background: rgba(7,5,18,.75); backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    display: flex; align-items: center; padding: 0 1.1rem; z-index: 100; gap: .7rem;
+  }
+  .brand { font-size: 1.1rem; font-weight: 900; color: var(--purple-light); display: flex; align-items: center; gap: .35rem; flex-shrink: 0; }
+  .brand-star { color: var(--amber); }
+  .spacer { flex: 1; }
+  .timer { font-family: 'DM Mono', monospace; font-size: .82rem; color: var(--muted); flex-shrink: 0; }
+
+  .status-pill { font-size: .62rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; border-radius: 20px; padding: .28rem .8rem; transition: all .3s; flex-shrink: 0; }
+  .status-pill.thinking { background: rgba(100,100,200,.2); color: #99aaff; border: 1px solid rgba(100,100,200,.3); }
+  .status-pill.speaking { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(251,191,36,.3); animation: pulse-amber 1.5s infinite; }
+  .status-pill.listening { background: rgba(52,211,153,.15); color: var(--green); border: 1px solid rgba(52,211,153,.3); animation: pulse-green 1.5s infinite; }
+  .status-pill.idle { background: rgba(255,255,255,.05); color: var(--muted); border: 1px solid rgba(255,255,255,.08); }
+  @keyframes pulse-amber { 0%,100%{box-shadow:0 0 0 0 rgba(251,191,36,.4)} 50%{box-shadow:0 0 0 6px rgba(251,191,36,0)} }
+  @keyframes pulse-green  { 0%,100%{box-shadow:0 0 0 0 rgba(52,211,153,.4)}  50%{box-shadow:0 0 0 6px rgba(52,211,153,0)} }
+
+  .btn-bar { padding: .32rem .9rem; border-radius: 20px; font-family: 'Nunito', sans-serif; font-size: .72rem; font-weight: 800; cursor: pointer; transition: background .2s; flex-shrink: 0; }
+  .btn-ghost { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); color: var(--muted); }
+  .btn-ghost:hover { color: var(--purple-light); border-color: var(--purple); background: var(--purple-dim); }
+  .btn-ghost.active { color: var(--cyan); border-color: var(--border-cyan); background: var(--cyan-dim); }
+  .btn-end { background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3); color: var(--red); }
+  .btn-end:hover { background: rgba(248,113,113,.2); }
+
+  /* ── MAIN CONTENT LAYOUT ── */
+  #main-layout { position: fixed; top: 56px; left: 0; right: 0; bottom: 0; overflow: hidden; }
+
+  /* ── AVATAR (full screen) ── */
+  #avatar-container { position: absolute; inset: 0; overflow: hidden; background: #070512; z-index: 1; }
+  #avatarVideo {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; object-position: center; display: block; background: #070512;
+  }
+
+  /* ── AVATAR LOADING ── */
+  .la-loading {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: .7rem; background: linear-gradient(135deg, #1a1040, #0d0825); pointer-events: none; z-index: 2;
+  }
+  .la-loading-text { font-size: .82rem; color: var(--muted); font-weight: 700; }
+
+  /* ── TRANSCRIPT DRAWER ── */
+  .transcript-drawer {
+    position: absolute; top: 0; left: 0; bottom: 0; width: 360px; max-width: 86vw; z-index: 8;
+    background: rgba(13,11,30,.82); backdrop-filter: blur(14px);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    transform: translateX(-101%); transition: transform .32s cubic-bezier(.4,0,.2,1);
+  }
+  .transcript-drawer.open { transform: translateX(0); }
+  .transcript-hdr { display: flex; align-items: center; justify-content: space-between; padding: .9rem 1.1rem; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .transcript-hdr-title { font-size: .8rem; font-weight: 800; color: var(--purple-light); letter-spacing: .04em; }
+  .transcript-close { width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; font-size: .85rem; }
+  .transcript-close:hover { color: var(--white); background: rgba(255,255,255,.08); }
+  #transcript-host { flex: 1; overflow-y: auto; padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: .85rem; }
+  #transcript-host::-webkit-scrollbar { width: 4px; }
+  #transcript-host::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .th-empty { color: var(--muted); font-size: .8rem; font-weight: 600; text-align: center; margin-top: 2rem; line-height: 1.6; }
+  .th-line { display: flex; flex-direction: column; gap: .2rem; }
+  .th-who { font-size: .6rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .th-you  .th-who { color: var(--cyan); }
+  .th-lumi .th-who { color: var(--purple-light); }
+  .th-text { font-size: .86rem; line-height: 1.5; }
+  .th-link { color: #60a5fa; text-decoration: underline; word-break: break-all; }
+
+  /* ── FLOATING LINKS TOAST / MODAL ── */
+  .links-toast {
+    position: absolute; top: 1rem; right: 1rem; width: 340px; max-width: 90vw; z-index: 14;
+    background: rgba(22,18,48,.96); border: 1px solid var(--border-cyan); border-radius: 16px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.45); backdrop-filter: blur(14px);
+    opacity: 0; transform: translateY(-12px) scale(.98); pointer-events: none;
+    transition: opacity .28s, transform .28s;
+    overflow: hidden;
+  }
+  .links-toast.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+  .links-hdr { display: flex; align-items: center; justify-content: space-between; padding: .8rem 1rem; border-bottom: 1px solid var(--border); }
+  .links-hdr-title { font-size: .82rem; font-weight: 900; color: var(--cyan); }
+  .links-close { width: 26px; height: 26px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; font-size: .8rem; }
+  .links-close:hover { color: var(--white); background: rgba(255,255,255,.08); }
+  .links-body { padding: .7rem; display: flex; flex-direction: column; gap: .55rem; max-height: 60vh; overflow-y: auto; }
+  .link-card { display: block; text-decoration: none; padding: .7rem .85rem; border-radius: 11px; background: rgba(255,255,255,.04); border: 1px solid var(--border); transition: background .2s, border-color .2s; }
+  .link-card:hover { background: var(--purple-dim); border-color: var(--purple); }
+  .link-card .lc-title { font-size: .84rem; font-weight: 800; color: var(--white); line-height: 1.35; margin-bottom: .25rem; }
+  .link-card .lc-src { font-size: .68rem; font-family: 'DM Mono', monospace; color: var(--cyan); }
+  .links-loading { padding: 1.1rem; display: flex; align-items: center; gap: .6rem; font-size: .8rem; color: var(--muted); font-weight: 700; }
+
+  /* badge to re-open last links */
+  .links-badge {
+    position: absolute; bottom: 1.1rem; right: 1.1rem; z-index: 12;
+    background: var(--cyan-dim); border: 1px solid var(--border-cyan); color: var(--cyan);
+    border-radius: 22px; padding: .5rem .95rem; font-size: .78rem; font-weight: 800; cursor: pointer;
+    box-shadow: 0 6px 20px rgba(0,0,0,.35); transition: transform .15s, background .2s;
+    display: none;
+  }
+  .links-badge:hover { transform: translateY(-2px); background: rgba(34,211,238,.2); }
+  .links-badge.visible { display: block; }
+
+  /* ── SUMMARY SCREEN ── */
+  #summaryScreen { display: flex; align-items: center; justify-content: center; flex-direction: column; overflow-y: auto; padding: 2rem 1rem; background: var(--bg); }
+  .summary-box { background: var(--card); border: 1px solid var(--border); border-radius: 20px; width: 100%; max-width: 720px; padding: 2.5rem; }
+  .summary-box h2 { font-size: 1.8rem; font-weight: 900; color: var(--purple-light); margin-bottom: .3rem; }
+  .summary-box .sub { color: var(--muted); font-size: .82rem; margin-bottom: 2rem; font-weight: 600; }
+  .summary-section-title { font-size: .68rem; letter-spacing: .16em; color: var(--purple-light); text-transform: uppercase; font-weight: 800; margin-bottom: .7rem; }
+  .transcript-export { background: rgba(0,0,0,.3); border-radius: 12px; padding: 1.2rem; max-height: 360px; overflow-y: auto; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: .9rem; }
+  .export-msg .role { font-size: .6rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: .2rem; }
+  .export-msg.interviewer .role { color: var(--purple-light); }
+  .export-msg.user        .role { color: var(--cyan); }
+  .export-msg .text { font-size: .85rem; line-height: 1.55; }
+  .links-export { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1.5rem; }
+  .links-export a { color: #60a5fa; font-size: .82rem; text-decoration: none; word-break: break-all; padding: .5rem .7rem; border-radius: 9px; background: rgba(0,0,0,.25); border: 1px solid var(--border); }
+  .links-export a:hover { background: var(--purple-dim); }
+  .feedback-box { background: var(--purple-dim); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1.5rem; }
+  .feedback-box h4 { color: var(--purple-light); font-size: .82rem; margin-bottom: .5rem; font-weight: 800; }
+  .feedback-box p { font-size: .85rem; line-height: 1.6; }
+  .summary-actions { display: flex; gap: .8rem; flex-wrap: wrap; }
+  .btn-primary {
+    width: 100%; padding: 1rem; background: linear-gradient(135deg, var(--purple), #4f46e5);
+    border: none; border-radius: 12px; color: white; font-family: 'Nunito', sans-serif;
+    font-size: .95rem; font-weight: 800; cursor: pointer; transition: opacity .2s, transform .15s;
+    box-shadow: 0 4px 20px rgba(124,58,237,.35);
+  }
+  .btn-primary:hover { opacity: .9; transform: translateY(-1px); }
+  .btn-secondary { flex: 1; min-width: 160px; padding: .8rem; background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 12px; color: var(--white); font-family: 'Nunito', sans-serif; font-size: .88rem; font-weight: 700; cursor: pointer; transition: background .2s; }
+  .btn-secondary:hover { background: rgba(255,255,255,.1); }
+
+  /* ── TOAST ── */
+  #toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); background: rgba(22,18,48,.95); border: 1px solid var(--border); border-radius: 12px; padding: .75rem 1.3rem; font-size: .82rem; font-weight: 700; color: var(--white); z-index: 9999; opacity: 0; transition: opacity .3s; pointer-events: none; max-width: 420px; text-align: center; backdrop-filter: blur(12px); }
+  #toast.show { opacity: 1; }
+  #toast.error { border-color: rgba(248,113,113,.4); color: #fca5a5; }
+
+  /* ── UTILITIES ── */
+  .spinner { width: 18px; height: 18px; border: 2px solid rgba(124,58,237,.3); border-top-color: var(--purple-light); border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── PRINT ── */
+  @media print {
+    body { background: white; color: black; overflow: auto; }
+    .screen { position: static; opacity: 1; pointer-events: auto; transform: none; }
+    #mainScreen, .top-bar, .summary-actions, .links-toast, .links-badge, .transcript-drawer { display: none !important; }
+    #summaryScreen { display: block !important; }
+    .summary-box { box-shadow: none; border: none; max-width: 100%; }
+    .transcript-export { max-height: none; overflow: visible; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ───────── TOPIC SELECTION MODAL ───────── -->
+<div id="topicOverlay" class="topic-overlay">
+  <div class="topic-modal">
+    <div class="topic-modal-icon">✨</div>
+    <h2 class="topic-modal-title">Ready to learn with Lumi?</h2>
+    <p class="topic-modal-sub">Talk out loud with Lumi about anything you're curious about.<br>Say "<b>can I get a link?</b>" or "<b>show me evidence</b>" and Lumi will find real pages for you.</p>
+    <button class="btn-start-nova" id="startNovaBtn">✨ Start with Lumi!</button>
+  </div>
+</div>
+
+<!-- ───────── MAIN SCREEN ───────── -->
+<div class="screen hidden" id="mainScreen">
+
+  <!-- Top bar -->
+  <div class="top-bar">
+    <span class="brand"><span class="brand-star">★</span> Lumi AI</span>
+    <div class="spacer"></div>
+    <span class="timer" id="timerDisplay">00:00</span>
+    <span class="status-pill idle" id="statusPill">Ready</span>
+    <button class="btn-bar btn-ghost" id="transcriptToggle" title="Show transcript">📝 Transcript</button>
+    <button class="btn-bar btn-end" id="endBtn">End</button>
+  </div>
+
+  <div id="main-layout">
+    <div id="avatar-container">
+      <video id="avatarVideo" autoplay playsinline></video>
+      <div class="la-loading" id="laLoading">
+        <span class="spinner"></span>
+        <span class="la-loading-text">Waking up Lumi…</span>
+      </div>
+    </div>
+
+    <!-- Live transcript drawer -->
+    <aside class="transcript-drawer" id="transcriptDrawer">
+      <div class="transcript-hdr">
+        <span class="transcript-hdr-title">📝 Live transcript</span>
+        <button class="transcript-close" id="transcriptCloseBtn">✕</button>
+      </div>
+      <div id="transcript-host">
+        <div class="th-empty" id="transcriptEmpty">The conversation will appear here as you and Lumi talk.</div>
+      </div>
+    </aside>
+
+    <!-- Floating links toast -->
+    <div class="links-toast" id="linksToast">
+      <div class="links-hdr">
+        <span class="links-hdr-title" id="linksTitle">🔗 Links</span>
+        <button class="links-close" id="linksCloseBtn">✕</button>
+      </div>
+      <div class="links-body" id="linksBody"></div>
+    </div>
+
+    <!-- Badge to reopen last links -->
+    <button class="links-badge" id="linksBadge">🔗 Links</button>
+  </div>
+
+</div>
+
+<!-- ───────── SUMMARY SCREEN ───────── -->
+<div class="screen hidden" id="summaryScreen">
+  <div class="summary-box">
+    <h2>Great Job! 🌟</h2>
+    <p class="sub" id="summaryMeta">Session ended</p>
+
+    <div class="summary-section-title">Conversation transcript</div>
+    <div class="transcript-export" id="exportTranscript"></div>
+
+    <div id="exportLinksWrap" style="display:none">
+      <div class="summary-section-title">Links Lumi found</div>
+      <div class="links-export" id="exportLinks"></div>
+    </div>
+
+    <div class="feedback-box" id="feedbackBox" style="display:none">
+      <h4>Lumi's Feedback</h4>
+      <p id="feedbackText"></p>
+    </div>
+
+    <div class="summary-actions">
+      <button class="btn-secondary" id="getFeedbackBtn">Get Lumi's Feedback</button>
+      <button class="btn-secondary" id="printBtn">Download / Print</button>
+      <button class="btn-primary" id="newInterviewBtn" style="margin-top:0">Talk to Lumi Again!</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+'use strict';
+
+import {
+  LiveAvatarSession,
+  SessionEvent,
+  AgentEventsEnum,
+} from 'https://esm.sh/@heygen/liveavatar-web-sdk@0.0.18';
+
+// ═══════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════
+const STATE = {
+  session: null,
+  topic: '',                 // first thing the student talked about
+  transcript: [],            // [{ role: 'you'|'lumi', text, ts }]
+  linkSets: [],              // [{ label, links: [{title,url,source}], ts }]
+  sessionStart: null,
+  timerInterval: null,
+  starting: false,
+};
+
+// Evidence trigger config
+const EVIDENCE_KEYWORDS = /\b(link|links|evidence)\b/i;
+const EVIDENCE_DEBOUNCE_MS = 8000;
+let _lastEvidenceTs = 0;
+let _lastEvidenceQuery = '';
+
+const $ = (id) => document.getElementById(id);
+const els = {
+  topicOverlay:      $('topicOverlay'),
+  startBtn:          $('startNovaBtn'),
+  mainScreen:        $('mainScreen'),
+  summaryScreen:     $('summaryScreen'),
+  timerDisplay:      $('timerDisplay'),
+  statusPill:        $('statusPill'),
+  endBtn:            $('endBtn'),
+  avatarVideo:       $('avatarVideo'),
+  laLoading:         $('laLoading'),
+  transcriptToggle:  $('transcriptToggle'),
+  transcriptDrawer:  $('transcriptDrawer'),
+  transcriptClose:   $('transcriptCloseBtn'),
+  transcriptHost:    $('transcript-host'),
+  transcriptEmpty:   $('transcriptEmpty'),
+  linksToast:        $('linksToast'),
+  linksTitle:        $('linksTitle'),
+  linksBody:         $('linksBody'),
+  linksClose:        $('linksCloseBtn'),
+  linksBadge:        $('linksBadge'),
+  exportTranscript:  $('exportTranscript'),
+  exportLinksWrap:   $('exportLinksWrap'),
+  exportLinks:       $('exportLinks'),
+  feedbackBox:       $('feedbackBox'),
+  feedbackText:      $('feedbackText'),
+  summaryMeta:       $('summaryMeta'),
+  getFeedbackBtn:    $('getFeedbackBtn'),
+  printBtn:          $('printBtn'),
+  newInterviewBtn:   $('newInterviewBtn'),
+  toast:             $('toast'),
+};
+
+// ═══════════════════════════════════════════════════════════
+//  UTILITIES
+// ═══════════════════════════════════════════════════════════
+function showToast(msg, isError = false, duration = 3500) {
+  els.toast.textContent = msg;
+  els.toast.className = 'show' + (isError ? ' error' : '');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => (els.toast.className = ''), duration);
+}
+
+function setScreen(name) {
+  ['mainScreen', 'summaryScreen'].forEach((id) => {
+    const el = $(id);
+    if (el) el.classList.toggle('hidden', id !== name);
+  });
+}
+
+function setStatus(state, labelOverride) {
+  const labels = { thinking: 'Connecting…', speaking: 'Lumi speaking', listening: 'Listening…', idle: 'Your turn' };
+  els.statusPill.className = 'status-pill ' + state;
+  els.statusPill.textContent = labelOverride || labels[state] || state;
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function renderTextWithLinks(text) {
+  return text.split(/(https?:\/\/[^\s]+)/).map((part) =>
+    /^https?:\/\//.test(part)
+      ? `<a class="th-link" href="${escapeHtml(part)}" target="_blank" rel="noopener">${escapeHtml(part)}</a>`
+      : escapeHtml(part)
+  ).join('');
+}
+
+function formatTime(s) {
+  return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TRANSCRIPT
+// ═══════════════════════════════════════════════════════════
+function appendToHost(role, text) {
+  if (els.transcriptEmpty) { els.transcriptEmpty.remove(); els.transcriptEmpty = null; }
+  const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const div = document.createElement('div');
+  div.className = 'th-line th-' + role;
+  div.innerHTML =
+    `<span class="th-who">${role === 'lumi' ? 'Lumi' : 'You'} · ${timeStr}</span>` +
+    `<span class="th-text">${renderTextWithLinks(text)}</span>`;
+  els.transcriptHost.appendChild(div);
+  els.transcriptHost.scrollTop = els.transcriptHost.scrollHeight;
+}
+
+function onTranscript(role, text) {
+  const clean = (text || '').trim();
+  if (!clean) return;
+  STATE.transcript.push({ role, text: clean, ts: Date.now() });
+  if (role === 'you' && !STATE.topic) STATE.topic = clean;
+  appendToHost(role, clean);
+  maybeTriggerEvidence(clean);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  EVIDENCE TRIGGER → 3 LINKS
+// ═══════════════════════════════════════════════════════════
+function recentContext(maxTurns = 6) {
+  return STATE.transcript.slice(-maxTurns)
+    .map((t) => `${t.role === 'lumi' ? 'Lumi' : 'Student'}: ${t.text}`)
+    .join('\n');
+}
+
+function maybeTriggerEvidence(text) {
+  if (!EVIDENCE_KEYWORDS.test(text)) return;
+  const now = Date.now();
+  if (now - _lastEvidenceTs < EVIDENCE_DEBOUNCE_MS) return;
+
+  const topic = STATE.topic || text;
+  const argument = recentContext();
+  const query = `${topic}::${argument}`;
+  if (query === _lastEvidenceQuery) return;
+
+  _lastEvidenceTs = now;
+  _lastEvidenceQuery = query;
+  searchEvidence(topic, argument);
+}
+
+async function searchEvidence(topic, argument) {
+  showLinksLoading();
+  try {
+    const resp = await fetch('/api/find-evidence', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ topic, argument }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !Array.isArray(data.links) || !data.links.length) {
+      hideLinksToast();
+      showToast(data.error ? `Couldn't find links: ${data.error}` : "Lumi couldn't find good links this time.", true);
+      return;
+    }
+    const label = (topic || 'this topic').slice(0, 60);
+    STATE.linkSets.push({ label, links: data.links, ts: Date.now() });
+    showLinks(data.links, label);
+  } catch (e) {
+    hideLinksToast();
+    showToast('Link search failed: ' + e.message, true);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  FLOATING LINKS TOAST
+// ═══════════════════════════════════════════════════════════
+function showLinksLoading() {
+  els.linksTitle.textContent = '🔗 Finding links…';
+  els.linksBody.innerHTML = '<div class="links-loading"><span class="spinner"></span> Searching the web…</div>';
+  els.linksToast.classList.add('show');
+  clearTimeout(showLinks._hide);
+}
+
+function showLinks(links, label) {
+  els.linksTitle.textContent = `🔗 ${links.length} link${links.length !== 1 ? 's' : ''}`;
+  els.linksBody.innerHTML = links.map((l) =>
+    `<a class="link-card" href="${escapeHtml(l.url)}" target="_blank" rel="noopener">
+       <div class="lc-title">${escapeHtml(l.title || l.url)}</div>
+       <div class="lc-src">${escapeHtml(l.source || '')}</div>
+     </a>`
+  ).join('');
+  els.linksToast.classList.add('show');
+  els.linksBadge.classList.add('visible');
+  els.linksBadge.textContent = `🔗 Links (${STATE.linkSets.length})`;
+  clearTimeout(showLinks._hide);
+  showLinks._hide = setTimeout(hideLinksToast, 20000);
+}
+
+function hideLinksToast() {
+  els.linksToast.classList.remove('show');
+}
+
+function reopenLastLinks() {
+  const last = STATE.linkSets[STATE.linkSets.length - 1];
+  if (last) showLinks(last.links, last.label);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TIMER
+// ═══════════════════════════════════════════════════════════
+function startTimer() {
+  STATE.sessionStart = Date.now();
+  STATE.timerInterval = setInterval(() => {
+    els.timerDisplay.textContent = formatTime(Math.floor((Date.now() - STATE.sessionStart) / 1000));
+  }, 1000);
+}
+function stopTimer() { clearInterval(STATE.timerInterval); }
+
+// ═══════════════════════════════════════════════════════════
+//  SESSION (LiveAvatar FULL mode via Web SDK)
+// ═══════════════════════════════════════════════════════════
+function wireSessionEvents(session) {
+  session.on(SessionEvent.SESSION_STREAM_READY, () => {
+    // Re-attach now that the tracks are live (idempotent for the same element).
+    try { session.attach(els.avatarVideo); } catch (_) { /* ignore */ }
+    els.laLoading.style.display = 'none';
+    els.avatarVideo.play?.().catch(() => {});
+    setStatus('idle');
+  });
+  session.on(SessionEvent.SESSION_DISCONNECTED, (reason) => {
+    console.warn('[LiveAvatar] disconnected:', reason);
+    if (!els.summaryScreen || els.summaryScreen.classList.contains('hidden')) {
+      showToast('Lumi disconnected.', true, 5000);
+    }
+  });
+
+  session.on(AgentEventsEnum.USER_SPEAK_STARTED,   () => setStatus('listening'));
+  session.on(AgentEventsEnum.USER_SPEAK_ENDED,     () => setStatus('idle'));
+  session.on(AgentEventsEnum.AVATAR_SPEAK_STARTED, () => setStatus('speaking'));
+  session.on(AgentEventsEnum.AVATAR_SPEAK_ENDED,   () => setStatus('idle'));
+
+  // Finalized transcripts (not the *.chunk partials) feed the panel + evidence trigger.
+  session.on(AgentEventsEnum.USER_TRANSCRIPTION,   (e) => onTranscript('you', e?.text));
+  session.on(AgentEventsEnum.AVATAR_TRANSCRIPTION, (e) => onTranscript('lumi', e?.text));
+
+  session.on(AgentEventsEnum.SESSION_STOPPED, () => {
+    if (els.mainScreen && !els.mainScreen.classList.contains('hidden')) endSession();
+  });
+}
+
+async function startSession() {
+  if (STATE.starting) return;
+  STATE.starting = true;
+  els.startBtn.disabled = true;
+  els.startBtn.innerHTML = '<span class="spinner"></span> Connecting…';
+
+  // reset
+  STATE.transcript = [];
+  STATE.linkSets = [];
+  STATE.topic = '';
+  _lastEvidenceTs = 0;
+  _lastEvidenceQuery = '';
+  els.transcriptHost.innerHTML = '<div class="th-empty" id="transcriptEmpty">The conversation will appear here as you and Lumi talk.</div>';
+  els.transcriptEmpty = $('transcriptEmpty');
+  els.linksBadge.classList.remove('visible');
+  hideLinksToast();
+  els.laLoading.style.display = 'flex';
+
+  try {
+    const resp = await fetch('/api/liveavatar/token', { method: 'POST' });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.token) {
+      throw new Error(data.error || `Could not start session (HTTP ${resp.status})`);
+    }
+
+    els.topicOverlay.classList.remove('open');
+    setScreen('mainScreen');
+    setStatus('thinking');
+    startTimer();
+
+    const session = new LiveAvatarSession(data.token, { voiceChat: true });
+    STATE.session = session;
+    session.attach(els.avatarVideo);
+    wireSessionEvents(session);
+    await session.start();
+  } catch (e) {
+    console.error(e);
+    stopTimer();
+    try { await STATE.session?.stop?.(); } catch (_) { /* ignore */ }
+    STATE.session = null;
+    els.laLoading.style.display = 'none';
+    showToast('Failed to start: ' + e.message, true, 8000);
+    // return to the topic modal so the user can retry
+    els.topicOverlay.classList.add('open');
+  } finally {
+    STATE.starting = false;
+    els.startBtn.disabled = false;
+    els.startBtn.innerHTML = '✨ Start with Lumi!';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  END + SUMMARY
+// ═══════════════════════════════════════════════════════════
+async function endSession() {
+  stopTimer();
+  try { await STATE.session?.stop?.(); } catch (_) { /* ignore */ }
+  STATE.session = null;
+
+  const duration = STATE.sessionStart ? Math.floor((Date.now() - STATE.sessionStart) / 1000) : 0;
+  const turns = STATE.transcript.filter((t) => t.role === 'you').length;
+  els.summaryMeta.textContent = `${formatTime(duration)} · ${turns} student turn${turns !== 1 ? 's' : ''} · ${STATE.linkSets.length} link search${STATE.linkSets.length !== 1 ? 'es' : ''}`;
+
+  // transcript
+  els.exportTranscript.innerHTML = '';
+  if (!STATE.transcript.length) {
+    els.exportTranscript.innerHTML = '<div class="export-msg"><div class="text" style="color:var(--muted)">No transcript was captured this session.</div></div>';
+  } else {
+    STATE.transcript.forEach((m) => {
+      const div = document.createElement('div');
+      div.className = 'export-msg ' + (m.role === 'lumi' ? 'interviewer' : 'user');
+      div.innerHTML = `<div class="role">${m.role === 'lumi' ? '🌟 Lumi' : '👤 You'}</div><div class="text">${renderTextWithLinks(m.text)}</div>`;
+      els.exportTranscript.appendChild(div);
+    });
+  }
+
+  // links
+  const allLinks = STATE.linkSets.flatMap((s) => s.links);
+  if (allLinks.length) {
+    els.exportLinks.innerHTML = allLinks.map((l) =>
+      `<a href="${escapeHtml(l.url)}" target="_blank" rel="noopener">${escapeHtml(l.title || l.url)} — ${escapeHtml(l.source || '')}</a>`
+    ).join('');
+    els.exportLinksWrap.style.display = 'block';
+  } else {
+    els.exportLinksWrap.style.display = 'none';
+  }
+
+  els.feedbackBox.style.display = 'none';
+  setScreen('summaryScreen');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  FEEDBACK (Claude sonnet-4-6, no web search)
+// ═══════════════════════════════════════════════════════════
+async function getFeedback() {
+  if (!STATE.transcript.length) { showToast('No conversation to give feedback on yet.', true); return; }
+  els.getFeedbackBtn.disabled = true;
+  els.getFeedbackBtn.innerHTML = '<span class="spinner"></span> Analyzing…';
+  try {
+    const convo = STATE.transcript.map((t) => `${t.role === 'lumi' ? 'Lumi' : 'Student'}: ${t.text}`).join('\n');
+    const resp = await fetch('/api/claude', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        max_tokens: 300,
+        system: 'You are Lumi, a warm, encouraging AI teacher for young English learners. Give fun, positive feedback about what the student did well and what they could explore next.',
+        messages: [{
+          role: 'user',
+          content: `Here is my conversation with a young student:\n\n${convo}\n\nPlease give warm, encouraging feedback for an elementary-school student. What did they understand well? What fun things can they explore more? Keep it under 80 words and make it exciting!`,
+        }],
+      }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+    els.feedbackText.textContent = data.text || 'Unable to generate feedback.';
+    els.feedbackBox.style.display = 'block';
+  } catch (e) {
+    showToast('Failed to get feedback: ' + e.message, true);
+  } finally {
+    els.getFeedbackBtn.disabled = false;
+    els.getFeedbackBtn.textContent = "Get Lumi's Feedback";
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  EVENT LISTENERS
+// ═══════════════════════════════════════════════════════════
+els.startBtn.addEventListener('click', startSession);
+
+els.endBtn.addEventListener('click', () => {
+  if (confirm('End the session with Lumi?')) endSession();
+});
+
+els.transcriptToggle.addEventListener('click', () => {
+  const open = els.transcriptDrawer.classList.toggle('open');
+  els.transcriptToggle.classList.toggle('active', open);
+});
+els.transcriptClose.addEventListener('click', () => {
+  els.transcriptDrawer.classList.remove('open');
+  els.transcriptToggle.classList.remove('active');
+});
+
+els.linksClose.addEventListener('click', hideLinksToast);
+els.linksBadge.addEventListener('click', reopenLastLinks);
+
+els.getFeedbackBtn.addEventListener('click', getFeedback);
+els.printBtn.addEventListener('click', () => window.print());
+els.newInterviewBtn.addEventListener('click', () => {
+  setScreen('mainScreen');
+  els.topicOverlay.classList.add('open');
+});
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+els.topicOverlay.classList.add('open');
+</script>
+</body>
+</html>
